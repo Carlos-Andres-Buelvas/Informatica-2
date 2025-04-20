@@ -1,73 +1,111 @@
-//-- PARTE DEL CÓDIGO INICIAL:
 #include <QCoreApplication>
 #include <QImage>
-#include <QFile>
 #include <QString>
 #include <iostream>
-                             using namespace std;
+#include <fstream>
+using namespace std;
 
-// ✅ Función proporcionada por los profes
-unsigned char* loadPixels(QString input, int &width, int &height){
-    QImage imagen(input);
-    if (imagen.isNull()) {
-        cout << "Error: No se pudo cargar la imagen BMP." << std::endl;
-        return nullptr;
+// Aplica operación XOR entre dos arreglos lineales de imagenes
+unsigned char* xorImagen(const unsigned char* img1, const unsigned char* img2, int totalBytes) {
+    unsigned char* resultado = new unsigned char[totalBytes];
+    for (int i = 0; i < totalBytes; ++i) {
+        resultado[i] = img1[i] ^ img2[i];
     }
-
-    imagen = imagen.convertToFormat(QImage::Format_RGB888);
-    width = imagen.width();
-    height = imagen.height();
-
-    int dataSize = width * height * 3;
-    unsigned char* pixelData = new unsigned char[dataSize];
-
-    for (int y = 0; y < height; ++y) {
-        const uchar* srcLine = imagen.scanLine(y);
-        unsigned char* dstLine = pixelData + y * width * 3;
-        memcpy(dstLine, srcLine, width * 3);
-    }
-
-    return pixelData;
+    return resultado;
 }
 
+// Carga un BMP (RGB888) en un arreglo lineal [R,G,B,...]
+unsigned char* loadPixels(const QString& ruta, int& ancho, int& alto) {
+    QImage img(ruta);
+    if (img.isNull()) {
+        cout << "Error cargando " << ruta.toStdString() << endl;
+        return nullptr;
+    }
+    img = img.convertToFormat(QImage::Format_RGB888);
+    ancho = img.width();
+    alto  = img.height();
+
+    int total = ancho * alto * 3;
+    unsigned char* pix = new unsigned char[total];
+    for (int y = 0; y < alto; ++y) {
+        memcpy(pix + y * ancho * 3, img.scanLine(y), ancho * 3);
+    }
+    return pix;
+}
+
+// Genera una imagen BMP (RGB888) y lo guarda en una ruta del portatil
+bool exportImage(unsigned char* datos, int ancho, int alto, const QString& ruta) {
+    QImage img(ancho, alto, QImage::Format_RGB888);
+    for (int y = 0; y < alto; ++y) {
+        memcpy(img.scanLine(y), datos + y * ancho * 3, ancho * 3);
+    }
+    if (!img.save(ruta, "BMP")) {
+        cout << "Error guardando " << ruta.toStdString() << endl;
+        return false;
+    }
+    cout << "Guardado: " << ruta.toStdString() << endl;
+    return true;
+}
+
+// Lee semilla + tríos RGB desde un TXT
+// Formato del TXT:
+//  semilla
+//  R G B
+//  R G B
+//  ...
+unsigned int* loadMaskData(const char* ruta, int& semilla, int& pixeles) {
+    ifstream archivo(ruta);
+    if (!archivo.is_open()) {
+        cout << "No se pudo abrir " << ruta << endl;
+        return nullptr;
+    }
+    archivo >> semilla;
+    int r, g, b;
+    // contamos cuántos tríos hay
+    while (archivo >> r >> g >> b) pixeles++;
+    archivo.clear();
+    archivo.seekg(0);
+    archivo >> semilla; // volvemos a leer la semilla
+
+    unsigned int* data = new unsigned int[pixeles * 3];
+    for (int i = 0; i < pixeles * 3; i += 3) {
+        archivo >> r >> g >> b;
+        data[i]     = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+    }
+    archivo.close();
+    return data;
+}
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
-    // 📂 Rutas
-    QString rutaImgOriginal  = "C:/Users/buelv/Downloads/Desafio I (Informatica II)/DesafioI/Caso 1/I_D.bmp";
-    QString rutaImgGaussiana = "C:/Users/buelv/Downloads/Desafio I (Informatica II)/DesafioI/Caso 1/I_M.bmp";
-    QString rutaMascara      = "C:/Users/buelv/Downloads/Desafio I (Informatica II)/DesafioI/Caso 1/M.bmp";
+    // --- RUTAS (ajusta a tu carpeta) ---
+    QString rutaOrig    = ".../I_D.bmp";
+    QString rutaGauss   = ".../I_M.bmp";
+    QString rutaMascBMP = ".../M.bmp";
+    const char* rutaTxt = ".../M2.txt";
+    QString salidaBMP   = ".../resultado.bmp";
 
-    int w1, h1, w2, h2, wm, hm;
-
-    // 📥 Cargar imágenes usando loadPixels()
-    unsigned char* imgOriginal  = loadPixels(rutaImgOriginal, w1, h1);
-    unsigned char* imgGaussiana = loadPixels(rutaImgGaussiana, w2, h2);
-    if (!imgOriginal || !imgGaussiana || w1 != w2 || h1 != h2) {
-        cout << "Error al cargar imágenes o tamaños incompatibles." << endl;
+    // --- Cargo las imágenes ---
+    int w1,h1, w2,h2, wm,hm;
+    unsigned char* imgOrig  = loadPixels(rutaOrig,    w1, h1);
+    unsigned char* imgGauss = loadPixels(rutaGauss,   w2, h2);
+    unsigned char* imgMasc  = loadPixels(rutaMascBMP, wm, hm);
+    if (imgOrig == nullptr || imgGauss == nullptr || imgMasc == nullptr || w1 != w2 || h1 != h2) {
+        cout << "Error en carga o tamaños distintos." << endl;
         return -1;
     }
 
-    // 🔐 XOR (imgGaussiana ^ imgOriginal)
-    int total = w1 * h1 * 3;
-    unsigned char* resultado = new unsigned char[total];
-    for (int i = 0; i < total; ++i) {
-        resultado[i] = imgGaussiana[i] ^ imgOriginal[i];
-    }
+    //EN PROCESO DE DESARROLLO...
 
-    // 🎭 Cargar la máscara
-    unsigned char* mascara = loadPixels(rutaMascara, wm, hm);
-    int totalMascara = wm * hm * 3;
-    if (!mascara) {
-        cout << "Error al cargar la máscara." << endl;
-        return -2;
-    }
-
-    // 🧹 Limpiar memoria
-    delete[] imgOriginal;
-    delete[] imgGaussiana;
+    // --- Libero todo ---
+    delete[] imgOrig;
+    delete[] imgGauss;
+    delete[] imgMasc;
+    delete[] datosMask;
+    delete[] esperado;
     delete[] resultado;
-    delete[] mascara;
 
     return 0;
 }
