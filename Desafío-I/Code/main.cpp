@@ -97,6 +97,16 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    int totalBytes   = w1 * h1 * 3;
+    int totalMascara = wm * hm * 3;
+
+    // --- Cargo TXT (semilla + datosMask) ---
+    int semilla = 0, cantPix = 0;
+    unsigned int* datosMask = loadMaskData(rutaTxt, semilla, cantPix);
+    if (datosMask == nullptr) return -2;
+
+    // --- Construyo el arreglo "esperado" = datosMask - máscaraBMP ---
+
     //EN PROCESO DE DESARROLLO...
 
     // --- Libero todo ---
