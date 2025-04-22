@@ -106,6 +106,16 @@ int main(int argc, char *argv[]) {
     if (datosMask == nullptr) return -2;
 
     // --- Construyo el arreglo "esperado" = datosMask - máscaraBMP ---
+    unsigned char* esperado = new unsigned char[totalMascara];
+    for (int i = 0; i < totalMascara; ++i) {
+        int resta = int(datosMask[i]) - int(imgMasc[i]);
+        if (resta < 0) resta = 0;
+        if (resta > 255) resta = 255;
+        esperado[i] = (unsigned char)resta;
+    }
+
+    // --- Primero pruebo XOR ---
+    unsigned char* resultado = xorImagen(imgOrig, imgGauss, totalBytes);
 
     //EN PROCESO DE DESARROLLO...
 
