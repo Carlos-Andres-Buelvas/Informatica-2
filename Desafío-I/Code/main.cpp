@@ -14,6 +14,18 @@ unsigned char* xorImagen(const unsigned char* img1, const unsigned char* img2, i
     return resultado;
 }
 
+// Rota n_bits posiciones hacia la izquierda en cada byte
+unsigned char rotarBitsDerecha(unsigned char b, int n_bits) {
+    n_bits %= 8;
+    return (b << n_bits) | (b >> (8 - n_bits));
+}
+
+// Rota n_bits posiciones hacia la derecha en cada byte
+unsigned char rotarBitsIzquierda(unsigned char b, int n_bits) {
+    n_bits %= 8;
+    return (b >> n_bits) | (b << (8 - n_bits));
+}
+
 // Carga un BMP (RGB888) en un arreglo lineal [R,G,B,...]
 unsigned char* loadPixels(const QString& ruta, int& ancho, int& alto) {
     QImage img(ruta);
