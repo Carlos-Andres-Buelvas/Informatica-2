@@ -89,6 +89,19 @@ unsigned int* loadMaskData(const char* ruta, int& semilla, int& pixeles) {
     archivo.close();
     return data;
 }
+
+// Compara byte a byte: grande[offset..offset+cnt-1] vs pequeño[0..cnt-1]
+bool comparar(const unsigned char* grande,
+              const unsigned char* pequeño,
+              int offset, int cantidad)
+{
+    for (int i = 0; i < cantidad; ++i) {
+        if (grande[offset + i] != pequeño[i])
+            return false;
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
@@ -128,6 +141,18 @@ int main(int argc, char *argv[]) {
 
     // --- Primero pruebo XOR ---
     unsigned char* resultado = xorImagen(imgOrig, imgGauss, totalBytes);
+    bool ok = comparar(resultado, esperado, semilla, totalMascara);
+
+    if (ok == false) {
+        // --- Si XOR falla, pruebo rotaciones izq (1..8) ---
+        for (int k = 1; k <= 8 && ok == false; ++k) {
+            for (int i = 0; i < totalBytes; ++i)
+                resultado[i] = rotarBitsDerecha(imgOrig[i], k);
+            ok = comparar(resultado, esperado, semilla, totalMascara);
+            if (ok) {
+                cout << "Transformación usada: Rotación izquierda de " << k << " bits." << endl;
+            }
+        }
 
     //EN PROCESO DE DESARROLLO...
 
