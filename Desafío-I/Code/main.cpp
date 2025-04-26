@@ -154,7 +154,25 @@ int main(int argc, char *argv[]) {
             }
         }
 
-    //EN PROCESO DE DESARROLLO...
+        // --- Si sigue fallando, pruebo rotaciones derecha ---
+        for (int k = 1; k <= 8 && ok == false; ++k) {
+            for (int i = 0; i < totalBytes; ++i)
+                resultado[i] = rotarBitsDerecha(imgOrig[i], k);
+            ok = comparar(resultado, esperado, semilla, totalMascara);
+            if (ok) {
+                cout << "Transformación usada: Rotación derecha de " << k << " bits." << endl;
+            }
+        }
+    } else {
+        cout << "Transformación usada: XOR." << endl;
+    }
+
+    if (ok) {
+        cout << "¡Transformación encontrada! Guardando imagen..." << endl;
+        exportImage(resultado, w1, h1, salidaBMP);
+    } else {
+        cout << "Ninguna transformación coincidió." << endl;
+    }
 
     // --- Libero todo ---
     delete[] imgOrig;
