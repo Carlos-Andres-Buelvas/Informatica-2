@@ -15,13 +15,13 @@ unsigned char* xorImagen(const unsigned char* img1, const unsigned char* img2, i
 }
 
 // Rota n_bits posiciones hacia la izquierda en cada byte
-unsigned char rotarBitsDerecha(unsigned char b, int n_bits) {
+unsigned char rotarBitsIzquierda(unsigned char b, int n_bits) {
     n_bits %= 8;
     return (b << n_bits) | (b >> (8 - n_bits));
 }
 
 // Rota n_bits posiciones hacia la derecha en cada byte
-unsigned char rotarBitsIzquierda(unsigned char b, int n_bits) {
+unsigned char rotarBitsDerecha(unsigned char b, int n_bits) {
     n_bits %= 8;
     return (b >> n_bits) | (b << (8 - n_bits));
 }
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     QString rutaGauss   = ".../I_M.bmp";
     QString rutaMascBMP = ".../M.bmp";
     const char* rutaTxt = ".../M2.txt";
-    QString salidaBMP   = ".../resultado.bmp";
+    QString salidaBMP   = ".../Resultado.bmp";
 
     // --- Cargo las imágenes ---
     int w1,h1, w2,h2, wm,hm;
@@ -147,10 +147,10 @@ int main(int argc, char *argv[]) {
         // --- Si XOR falla, pruebo rotaciones izq (1..8) ---
         for (int k = 1; k <= 8 && ok == false; ++k) {
             for (int i = 0; i < totalBytes; ++i)
-                resultado[i] = rotarBitsDerecha(imgOrig[i], k);
+                resultado[i] = rotarBitsIzquierda(imgOrig[i], k);
             ok = comparar(resultado, esperado, semilla, totalMascara);
             if (ok) {
-                cout << "Transformación usada: Rotación izquierda de " << k << " bits." << endl;
+                cout << "Transformacion usada: Rotacion izquierda de " << k << " bits." << endl;
             }
         }
 
@@ -160,18 +160,18 @@ int main(int argc, char *argv[]) {
                 resultado[i] = rotarBitsDerecha(imgOrig[i], k);
             ok = comparar(resultado, esperado, semilla, totalMascara);
             if (ok) {
-                cout << "Transformación usada: Rotación derecha de " << k << " bits." << endl;
+                cout << "Transformacion usada: Rotacion derecha de " << k << " bits." << endl;
             }
         }
     } else {
-        cout << "Transformación usada: XOR." << endl;
+        cout << "Transformacion usada: XOR." << endl;
     }
 
     if (ok) {
-        cout << "¡Transformación encontrada! Guardando imagen..." << endl;
+        cout << "¡Transformacion encontrada! Guardando imagen..." << endl;
         exportImage(resultado, w1, h1, salidaBMP);
     } else {
-        cout << "Ninguna transformación coincidió." << endl;
+        cout << "Ninguna transformacion coincidio." << endl;
     }
 
     // --- Libero todo ---

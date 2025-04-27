@@ -1,0 +1,218 @@
+#include <QCoreApplication>
+#include <QImage>
+#include <QString>
+#include <iostream>
+#include <fstream>
+using namespace std;
+
+// Aplica operación XOR entre dos arreglos lineales de imagenes
+unsigned char* xorImagen(const unsigned char* img1, const unsigned char* img2, int totalBytes) {
+    unsigned char* resultado = new unsigned char[totalBytes];
+    for (int i = 0; i < totalBytes; ++i) {
+        resultado[i] = img1[i] ^ img2[i];
+    }
+    return resultado;
+}
+
+// Rota n_bits posiciones hacia la izquierda en cada byte
+unsigned char rotarBitsIzquierda(unsigned char b, int n_bits) {
+    n_bits %= 8;
+    return (b << n_bits) | (b >> (8 - n_bits));
+}
+
+// Rota n_bits posiciones hacia la derecha en cada byte
+unsigned char rotarBitsDerecha(unsigned char b, int n_bits) {
+    n_bits %= 8;
+    return (b >> n_bits) | (b << (8 - n_bits));
+}
+
+// Carga un BMP (RGB888) en un arreglo lineal [R,G,B,...]
+unsigned char* loadPixels(const QString& ruta, int& ancho, int& alto) {
+    QImage img(ruta);
+    if (img.isNull()) {
+        cout << "Error cargando " << ruta.toStdString() << endl;
+        return nullptr;
+    }
+    img = img.convertToFormat(QImage::Format_RGB888);
+    ancho = img.width();
+    alto  = img.height();
+
+    int total = ancho * alto * 3;
+    unsigned char* pix = new unsigned char[total];
+    for (int y = 0; y < alto; ++y) {
+        memcpy(pix + y * ancho * 3, img.scanLine(y), ancho * 3);
+    }
+    return pix;
+}
+
+// Genera una imagen BMP (RGB888) y lo guarda en una ruta del portatil
+bool exportImage(unsigned char* datos, int ancho, int alto, const QString& ruta) {
+    QImage img(ancho, alto, QImage::Format_RGB888);
+    for (int y = 0; y < alto; ++y) {
+        memcpy(img.scanLine(y), datos + y * ancho * 3, ancho * 3);
+    }
+    if (!img.save(ruta, "BMP")) {
+        cout << "Error guardando " << ruta.toStdString() << endl;
+        return false;
+    }
+    cout << "Guardado: " << ruta.toStdString() << endl;
+    cout << endl;
+    return true;
+}
+
+// Lee semilla + tríos RGB desde un TXT
+// Formato del TXT:
+//  semilla
+//  R G B
+//  R G B
+//  ...
+unsigned int* loadMaskData(const char* ruta, int& semilla, int& pixeles) {
+    ifstream archivo(ruta);
+    if (!archivo.is_open()) {
+        cout << "No se pudo abrir " << ruta << endl;
+        return nullptr;
+    }
+    archivo >> semilla;
+    int r, g, b;
+    // contamos cuántos tríos hay
+    while (archivo >> r >> g >> b) pixeles++;
+    archivo.clear();
+    archivo.seekg(0);
+    archivo >> semilla; // volvemos a leer la semilla
+
+    unsigned int* data = new unsigned int[pixeles * 3];
+    for (int i = 0; i < pixeles * 3; i += 3) {
+        archivo >> r >> g >> b;
+        data[i]     = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+    }
+    archivo.close();
+    return data;
+}
+
+// Compara byte a byte: grande[offset..offset+cnt-1] vs pequeño[0..cnt-1]
+bool comparar(const unsigned char* grande,
+              const unsigned char* pequeño,
+              int offset, int cantidad)
+{
+    for (int i = 0; i < cantidad; ++i) {
+        if (grande[offset + i] != pequeño[i])
+            return false;
+    }
+    return true;
+}
+
+int main(int argc, char *argv[]) {
+    QCoreApplication app(argc, argv);
+
+    unsigned char* imgOrig = nullptr;
+    unsigned char* imgGauss = nullptr;
+    unsigned char* imgMasc = nullptr;
+    unsigned int* datosMask = nullptr;
+    unsigned char* esperado = nullptr;
+    unsigned char* resultado = nullptr;
+    bool ok = false;
+
+    int cantidadArchivos = 0;
+    cout << "Ingrese la cantidad de archivos .txt: ";
+    cin >> cantidadArchivos;
+    cantidadArchivos--; // porque vamos a empezar en M(cantidad-1).txt
+
+    do {
+        // --- RUTAS (ajusta a tu carpeta) ---
+        QString rutaOrig;
+        if (ok == true) {
+            rutaOrig = ".../Resultado.bmp";
+        } else {
+            rutaOrig = ".../I_D.bmp";
+        }
+        QString rutaGauss   = ".../I_M.bmp";
+        QString rutaMascBMP = ".../M.bmp";
+
+        // Aquí generamos dinámicamente el nombre del archivo txt:
+        string rutaTxtStr = ".../M" + to_string(cantidadArchivos) + ".txt";
+        const char* rutaTxt = rutaTxtStr.c_str();
+
+        QString salidaBMP   = ".../Resultado.bmp";
+
+        cout << "Usando archivo: " << rutaTxt << endl;
+
+        // --- Cargo las imágenes ---
+        int w1,h1, w2,h2, wm,hm;
+        imgOrig  = loadPixels(rutaOrig,    w1, h1);
+        imgGauss = loadPixels(rutaGauss,   w2, h2);
+        imgMasc  = loadPixels(rutaMascBMP, wm, hm);
+        if (imgOrig == nullptr || imgGauss == nullptr || imgMasc == nullptr || w1 != w2 || h1 != h2) {
+            cout << "Error en carga o tamaños distintos." << endl;
+            return -1;
+        }
+
+        int totalBytes   = w1 * h1 * 3;
+        int totalMascara = wm * hm * 3;
+
+        // --- Cargo TXT (semilla + datosMask) ---
+        int semilla = 0, cantPix = 0;
+        datosMask = loadMaskData(rutaTxt, semilla, cantPix);
+        if (datosMask == nullptr) return -2;
+
+        // --- Construyo el arreglo "esperado" = datosMask - máscaraBMP ---
+        esperado = new unsigned char[totalMascara];
+        for (int i = 0; i < totalMascara; ++i) {
+            int resta = int(datosMask[i]) - int(imgMasc[i]);
+            if (resta < 0) resta = 0;
+            if (resta > 255) resta = 255;
+            esperado[i] = (unsigned char)resta;
+        }
+
+        // --- Primero pruebo XOR ---
+        resultado = xorImagen(imgOrig, imgGauss, totalBytes);
+        ok = comparar(resultado, esperado, semilla, totalMascara);
+
+        if (ok == false) {
+            // --- Si XOR falla, pruebo rotaciones izq (1..8) ---
+            for (int k = 1; k <= 8 && ok == false; ++k) {
+                for (int i = 0; i < totalBytes; ++i)
+                    resultado[i] = rotarBitsIzquierda(imgOrig[i], k);
+                ok = comparar(resultado, esperado, semilla, totalMascara);
+                if (ok) {
+                    cout << "Transformacion usada: Rotacion izquierda de " << k << " bits." << endl;
+                }
+            }
+
+            // --- Si sigue fallando, pruebo rotaciones derecha ---
+            for (int k = 1; k <= 8 && ok == false; ++k) {
+                for (int i = 0; i < totalBytes; ++i)
+                    resultado[i] = rotarBitsDerecha(imgOrig[i], k);
+                ok = comparar(resultado, esperado, semilla, totalMascara);
+                if (ok) {
+                    cout << "Transformacion usada: Rotacion derecha de " << k << " bits." << endl;
+                }
+            }
+        } else {
+            cout << "Transformacion usada: XOR." << endl;
+        }
+
+        if (ok) {
+            cout << "¡Transformacion encontrada! Guardando imagen..." << endl;
+            exportImage(resultado, w1, h1, salidaBMP);
+        } else {
+            cout << "Ninguna transformacion coincidio." << endl;
+        }
+
+        // Libero memoria antes de la próxima iteración
+        delete[] imgOrig;
+        delete[] imgGauss;
+        delete[] imgMasc;
+        delete[] datosMask;
+        delete[] esperado;
+        delete[] resultado;
+        imgOrig = imgGauss = imgMasc = esperado = resultado = nullptr;
+        datosMask = nullptr;
+
+        cantidadArchivos--;
+
+    } while (ok == true && cantidadArchivos >= 0);
+
+    return 0;
+}
